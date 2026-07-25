@@ -1,4 +1,6 @@
 const express = require('express');
+const swaggerUi = require('swagger-ui-express');
+const openApi= require('./openapi.json');
 const app = express();
 const PORT = 3000;
 
@@ -28,19 +30,19 @@ let tasks = [
 app.put('/tasks/:id', (req, res) => {
     const id = parseInt(req.params.id);
     const task = tasks.find(t => t.id === id);
-    if (!tasks){return res.status(404).json({error: `Task ${id} not found`});}
+    if (!task){return res.status(404).json({error: `Task ${id} not found`});}
     
     const {title, done} = req.body;
     if (title !== undefined && title.trim() === ""){return res.status(400).json({error: 'Task title cannot be empty'});}
     if(title !== undefined) task.title = title;
     if (done !== undefined) task.done = done;
-    res.json(tasks);
+    res.json(task);
 });
 
 // ───── Delete Tasks ───
 app.delete('/tasks/:id', (req, res) => {
     const id = parseInt(req.params.id);
-    const index = tasks.findIndex(t => t,id === id);
+    const index = tasks.findIndex(t => t.id === id);
     if (index === -1){return res.status(404).json({error: `Task ${id} not found`})}
     tasks.splice(index,1);
     res.status(204).send();
@@ -65,6 +67,8 @@ app.get('/tasks/:id', (req, res) => {
     }
     res.json(task);
 });
+
+app.use('/docs', swaggerUi.serve, swaggerUi.setup(openApi));
 
 // ───── Listen Message ───
 app.listen(PORT, () => {
