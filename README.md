@@ -1,10 +1,10 @@
 # Task API
 
-A lightweight REST API for managing a to-do list. It is built with Express and keeps task data in memory, making it a simple project for learning or experimenting with CRUD endpoints.
+A lightweight CRUD API for managing a to-do list. It is built with Express and keeps task data in memory, making it a simple project for learning or experimenting with CRUD endpoints.
 
 ## Features
 
-- Create, read, update, and delete tasks
+- Create, Read, Update, Delete tasks (CRUD)
 - JSON request and response bodies
 - Input validation for task titles
 - Health-check endpoint
