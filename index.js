@@ -2,6 +2,7 @@ const express = require('express');
 const swaggerUi = require('swagger-ui-express');
 const openApi= require('./openapi.json');
 const app = express();
+const db = require('./db.js');
 const PORT = 3000;
 
 app.use(express.json());
@@ -56,12 +57,13 @@ app.get('/health', (req, res) => {
 });
 
 app.get('/tasks', (req, res) => {
-    res.json(tasks);
+   const tasks = db.prepare("SELECT * FROM tasks").all();
+   res.json(tasks); 
 });
 
 app.get('/tasks/:id', (req, res) => {
     const id = parseInt(req.params.id);
-    const task = tasks.find(t => t.id === id);
+    const task = db.prepare("SELECT * FROM tasks WHERE id = ?").get(id);
     if (!task){
         return res.status(404).json({error: `Task ${id} not found`});
     }
