@@ -27,24 +27,32 @@ let tasks = [
 // ─────Update a Task ───
 app.put('/tasks/:id', (req, res) => {
     const id = parseInt(req.params.id);
-    const task = tasks.find(t => t.id === id);
-    if (!task){return res.status(404).json({error: `Task ${id} not found`});}
-    
+    const existing = db.prepare('SELECT * FROM tasks WHERE id = ?').get(id);
+    if (!existing){
+        return res.status(404).json({error: `Task ${id} not found`});
+    }
     const {title, done} = req.body;
-    if (title !== undefined && title.trim() === ""){return res.status(400).json({error: 'Task title cannot be empty'});}
-    if(title !== undefined) task.title = title;
-    if (done !== undefined) task.done = done;
-    res.json(task);
+    if (title !== undefined && title.trim() === ""){
+        return res.status(400).json({error: "Title cannot be empty"});
+    }
+    const newTitle = title !== undefined ? title : existing.title;
+    const newDone = done !== undefined ? (done ? 1 : 0) : existing.done;
+    db.prepare('UPDATE tasks SET title = ?, done = ? WHERE id = ?').run(newTitle, newDone, id);
+    const updated = db.prepare('SELECT * FROM tasks WHERE id = ?').get(id);
+    res.json(updated);
 });
+//───────────────────────
 
 // ───── Delete Tasks ───
 app.delete('/tasks/:id', (req, res) => {
     const id = parseInt(req.params.id);
-    const index = tasks.findIndex(t => t.id === id);
-    if (index === -1){return res.status(404).json({error: `Task ${id} not found`})}
-    tasks.splice(index,1);
+    const existing = db.prepare("SELECT * FROM tasks WHERE id = ?").get(id);
+    if (!existing){return res.status(404).json({error: `Task ${id} not found`})}
+    db.prepare('DELETE FROM tasks WHERE id = ?').run(id);
     res.status(204).send();
 });
+// ──────────────────────
+
 app.get('/', (req, res) => {
     res.json({ name: "Task API", version: "1.0", endpoints: ["/tasks"] });
 });
