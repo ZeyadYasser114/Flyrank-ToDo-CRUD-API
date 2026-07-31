@@ -4,7 +4,7 @@ const openApi= require('./openapi.json');
 const app = express();
 const db = require('./db.js');
 const PORT = 3000;
-
+// ──────────────────────
 app.use(express.json());
 app.post('/tasks',(req, res) =>{
     const {title} = req.body;
@@ -16,6 +16,8 @@ app.post('/tasks',(req, res) =>{
     const newTask = db.prepare('SELECT * FROM tasks WHERE id = ?').get(result.lastInsertRowid);
     res.status(201).json(newTask);
 });
+// ──────────────────────
+
 
 // ───── Fixed Database ───
 let tasks = [
@@ -23,6 +25,7 @@ let tasks = [
     {id: 2, title: "Develop a black hole", done: false},
     {id: 3, title: "Meet abraham linclon",done: false}
 ];
+
 
 // ─────Update a Task ───
 app.put('/tasks/:id', (req, res) => {
@@ -43,6 +46,7 @@ app.put('/tasks/:id', (req, res) => {
 });
 //───────────────────────
 
+
 // ───── Delete Tasks ───
 app.delete('/tasks/:id', (req, res) => {
     const id = parseInt(req.params.id);
@@ -53,19 +57,28 @@ app.delete('/tasks/:id', (req, res) => {
 });
 // ──────────────────────
 
+
+// ───── Default ───
 app.get('/', (req, res) => {
     res.json({ name: "Task API", version: "1.0", endpoints: ["/tasks"] });
 });
 
+
+// ───── Server Health ───
 app.get('/health', (req, res) => {
     res.json({ status: "ok" });
 });
 
+
+// ───── Tasks ───
 app.get('/tasks', (req, res) => {
    const tasks = db.prepare("SELECT * FROM tasks").all();
    res.json(tasks); 
 });
+// ──────────────────────
 
+
+// ───── Tasks with id ───
 app.get('/tasks/:id', (req, res) => {
     const id = parseInt(req.params.id);
     const task = db.prepare("SELECT * FROM tasks WHERE id = ?").get(id);
@@ -74,10 +87,16 @@ app.get('/tasks/:id', (req, res) => {
     }
     res.json(task);
 });
+// ──────────────────────
 
+
+// ───── Swagger UI ───
 app.use('/docs', swaggerUi.serve, swaggerUi.setup(openApi));
+// ──────────────────────
+
 
 // ───── Listen Message ───
 app.listen(PORT, () => {
     console.log(`Server is running on http://localhost:${PORT}`);
 });
+// ──────────────────────
