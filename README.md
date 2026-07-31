@@ -1,6 +1,6 @@
 # Task API
 
-A lightweight CRUD API for managing a to-do list. It is built with Express and keeps task data in memory, making it a simple project for learning or experimenting with CRUD endpoints.
+A lightweight CRUD API for managing a to-do list. It is built with Express and stores task data in a SQLite database, making it a simple project for learning or experimenting with CRUD endpoints and persistence.
 
 ## Features
 
@@ -9,12 +9,13 @@ A lightweight CRUD API for managing a to-do list. It is built with Express and k
 - Input validation for task titles
 - Health-check endpoint
 - Interactive Swagger UI documentation
-- No database setup required
+- Persistent storage with SQLite — data survives server restarts
 
 ## Tech stack
 
 - [Node.js](https://nodejs.org/)
 - [Express](https://expressjs.com/) 5
+- [SQLite](https://www.sqlite.org/) via Node's built-in [`node:sqlite`](https://nodejs.org/api/sqlite.html) module
 - [Swagger UI Express](https://github.com/scottie1984/swagger-ui-express)
 - [OpenAPI](https://www.openapis.org/) 3.0
 - [Nodemon](https://nodemon.io/) for development
@@ -23,7 +24,7 @@ A lightweight CRUD API for managing a to-do list. It is built with Express and k
 
 ### Prerequisites
 
-- Node.js 18 or newer
+- Node.js 22.5 or newer (required for the built-in `node:sqlite` module)
 - npm
 
 ### Installation
@@ -139,6 +140,8 @@ Start the server and visit [http://localhost:3000/docs](http://localhost:3000/do
 ```text
 .
 ├── index.js        # Express server and route handlers
+├── db.js           # SQLite connection, schema, and seed logic
+├── tasks.db        # SQLite database file (git-ignored, created automatically)
 ├── openapi.json    # OpenAPI 3.0 specification
 ├── package.json    # Project metadata, scripts, and dependencies
 ├── package-lock.json
@@ -148,13 +151,39 @@ Start the server and visit [http://localhost:3000/docs](http://localhost:3000/do
 
 ## Data persistence
 
-Tasks are stored in a fixed in-memory array. The data resets to the default sample tasks whenever the server restarts, and changes are not persisted to a database or file.
+Tasks are stored in a SQLite database (`tasks.db`) instead of in memory, so data survives a server restart.
 
-The default tasks are:
+**Why SQLite:** it's a single file with no separate server process to install or configure, which makes it a good fit for a small project like this — `tasks.db` is created automatically the first time the app runs.
+
+**Where the database lives:** `tasks.db`, in the project root. It's git-ignored, so cloning this repo does not come with any existing data — each clone starts fresh and the database, table, and seed tasks are all created automatically on first run.
+
+**Start command:**
+
+```bash
+npm run dev
+```
+
+This alone is enough to get a working app: `tasks.db` and its `tasks` table are created if missing, and seeded with three example tasks the first time the table is empty.
+
+The default seed tasks are:
 
 - Buy the mona lisa
 - Develop a black hole
 - Meet abraham linclon
+
+### Inspecting the database directly
+
+`tasks.db` can be opened in [DB Browser for SQLite](https://sqlitebrowser.org/) to view and query the data outside the API:
+
+![tasks.db open in DB Browser for SQLite showing the tasks table](./screenshot-db-browser.png)
+
+Example query run directly against the database in DB Browser:
+
+```sql
+SELECT * FROM tasks WHERE done = 1;
+```
+
+This returned only the tasks currently marked complete — confirming that the API and DB Browser read and write the exact same file, with no syncing step between them.
 
 ## License
 
