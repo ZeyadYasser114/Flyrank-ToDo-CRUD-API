@@ -1,21 +1,25 @@
-const { DatabaseSync } = require('node:sqlite');
-const db = new DatabaseSync('tasks.db');
+const { Pool } = require('pg');
+require('dotenv').config();
+const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 
-db.exec(`
-  CREATE TABLE IF NOT EXISTS tasks (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    title TEXT NOT NULL,
-    done INTEGER NOT NULL DEFAULT 0
-  )
-`);
+async function init(){
+  await pool.query(`
+      CREATE TABLE IF NOT EXISTS tasks (
+      id SERIAL PRIMARY KEY,
+      title TEXT NOT NULL,
+      done BOOLEAN NOT NULL DEFAULT false
+      )
+    `);
 
-const count = db.prepare('SELECT COUNT(*) AS count FROM tasks').get().count;
+  const { rows } = await pool.query('SELECT COUNT(*) AS count FROM tasks');
+  const count = parseInt(rows[0].count, 10);
 
-if (count === 0) {
-  const insert = db.prepare('INSERT INTO tasks (title, done) VALUES (?, ?)');
-  insert.run('Buy the mona lisa', 0);
-  insert.run('Develop a black hole', 0);
-  insert.run('Meet abraham linclon', 0);
+  if (count === 0){
+    await pool.query('INSERT INTO tasks (title, done) VALUES ($1, $2)', ['Buy the mona lisa', false]);
+    await pool.query('INSERT INTO tasks (title, done) VALUES ($1, $2)', ['Develop a black hole', false]);
+    await pool.query('INSERT INTO tasks (title, done) VALUES ($1, $2)', ['Meet Abraham Linclon', false]);
+  }
 }
 
-module.exports = db;
+init();
+module.exports = pool;
