@@ -2,7 +2,7 @@ const express = require('express');
 const swaggerUi = require('swagger-ui-express');
 const openApi= require('./openapi.json');
 const app = express();
-const db = require('./db.js');
+const pool = require('./db.js');
 const PORT = 3000;
 // ──────────────────────
 app.use(express.json());
@@ -71,21 +71,21 @@ app.get('/health', (req, res) => {
 
 
 // ───── Tasks ───
-app.get('/tasks', (req, res) => {
-   const tasks = db.prepare("SELECT * FROM tasks").all();
-   res.json(tasks); 
+app.get('/tasks', async (req, res) => {
+   const result = await pool.query('SELECT * FROM tasks');
+   res.json(result.rows); 
 });
 // ──────────────────────
 
 
 // ───── Tasks with id ───
-app.get('/tasks/:id', (req, res) => {
+app.get('/tasks/:id', async (req, res) => {
     const id = parseInt(req.params.id);
-    const task = db.prepare("SELECT * FROM tasks WHERE id = ?").get(id);
-    if (!task){
+    const result = await pool.query("SELECT * FROM tasks WHERE id = $1", [id]);
+    if (result.rows.length === 0){
         return res.status(404).json({error: `Task ${id} not found`});
     }
-    res.json(task);
+    res.json(result.rows[0]);
 });
 // ──────────────────────
 
@@ -99,4 +99,4 @@ app.use('/docs', swaggerUi.serve, swaggerUi.setup(openApi));
 app.listen(PORT, () => {
     console.log(`Server is running on http://localhost:${PORT}`);
 });
-// ──────────────────────
+// ────────────────────── 
