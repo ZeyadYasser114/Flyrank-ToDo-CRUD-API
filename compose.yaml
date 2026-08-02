@@ -1,0 +1,19 @@
+services:
+  api:
+    build: .
+    ports:
+      - "3000:3000"
+    environment:
+      DATABASE_URL: postgres://postgres:dev@db:5432/tasks
+    depends_on:
+      - db
+  db:
+    image: postgres
+    environment:
+      POSTGRES_PASSWORD: dev
+      POSTGRES_DB: tasks
+    volumes:
+      - taskdata:/var/lib/postgresql
+
+volumes:
+  taskdata:
