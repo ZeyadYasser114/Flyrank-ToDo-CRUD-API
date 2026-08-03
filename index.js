@@ -6,6 +6,8 @@ const pool = require('./db.js');
 const PORT = 3000;
 // ──────────────────────
 app.use(express.json());
+
+// ─────Make a task ───
 app.post('/tasks', async (req, res) =>{
     const {title} = req.body;
     if (!title || title.trim() == ""){
@@ -44,7 +46,7 @@ app.put('/tasks/:id', async (req, res) => {
 //───────────────────────
 
 
-// ───── Delete Tasks ─── MODIFY! *
+// ───── Delete Tasks ───
 app.delete('/tasks/:id', async (req, res) => {
     const id = parseInt(req.params.id);
     const existing = await pool.query("SELECT * FROM tasks WHERE id = $1", [id])
