@@ -7,6 +7,8 @@ const app = express();
 const PORT = 3000;
 // ──────────────────────
 app.use(express.json());
+
+// ─────Make a task ───
 app.post('/tasks', async (req, res) =>{
     const {title} = req.body;
     if (!title || title.trim() == ""){

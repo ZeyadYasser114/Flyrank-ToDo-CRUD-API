@@ -1,6 +1,8 @@
 # Task API
 
-A lightweight CRUD API for managing a to-do list. It is built with Express and stores task data in a SQLite database, making it a simple project for learning or experimenting with CRUD endpoints and persistence.
+A lightweight CRUD API for managing a to-do list. Built with Express, backed by PostgreSQL running in Docker, and started with a single command via Docker Compose.
+
+This is the third storage swap in this project's history: in-memory (A1) → SQLite file (A2) → containerized Postgres (this version, A3). The API's routes and behavior are unchanged across all three — only the storage engine underneath has changed.
 
 ## Features
 
@@ -9,49 +11,69 @@ A lightweight CRUD API for managing a to-do list. It is built with Express and s
 - Input validation for task titles
 - Health-check endpoint
 - Interactive Swagger UI documentation
-- Persistent storage with SQLite — data survives server restarts
+- Persistent storage with PostgreSQL, running in a Docker container with a named volume — data survives both app restarts and full container teardown
+- Entire stack (app + database) starts with one command: `docker compose up`
 
 ## Tech stack
 
-- [Node.js](https://nodejs.org/)
-- [Express](https://expressjs.com/) 5
-- [SQLite](https://www.sqlite.org/) via Node's built-in [`node:sqlite`](https://nodejs.org/api/sqlite.html) module
+- [Node.js](https://nodejs.org/) 20
+- [Express](https://expressjs.com/)
+- [PostgreSQL](https://www.postgresql.org/), via [node-postgres (`pg`)](https://node-postgres.com/)
+- [Docker](https://www.docker.com/) & [Docker Compose](https://docs.docker.com/compose/)
 - [Swagger UI Express](https://github.com/scottie1984/swagger-ui-express)
 - [OpenAPI](https://www.openapis.org/) 3.0
-- [Nodemon](https://nodemon.io/) for development
 
 ## Getting started
 
 ### Prerequisites
 
-- Node.js 22.5 or newer (required for the built-in `node:sqlite` module)
-- npm
+- [Docker Desktop](https://www.docker.com/products/docker-desktop/) (with WSL2 backend, on Windows)
+- Git
+
+No local Node.js or Postgres install is required — both run inside containers.
 
 ### Installation
 
-Clone the repository, move into the project directory, and install the dependencies:
+Clone the repository and move into the project directory:
 
 ```bash
 git clone <repository-url>
 cd todo-api
-npm install
 ```
 
-### Start the server
-
-Run the development server with Nodemon:
+Copy the example environment file and adjust if needed:
 
 ```bash
-npm run dev
+cp .env.example .env
 ```
 
-The API is available at:
+### Start the whole stack
+
+```bash
+docker compose up
+```
+
+This single command builds the app image, pulls the official Postgres image, and starts both containers together. The API becomes available at:
 
 ```text
 http://localhost:3000
 ```
 
-> The server currently listens on port `3000`.
+To stop everything:
+
+```bash
+docker compose down
+```
+
+Data persists across `docker compose down` / `docker compose up` cycles because Postgres's data directory is mounted to a named Docker volume (`taskdata`), not stored inside the container itself.
+
+## Environment variables
+
+Set in `.env` (git-ignored; see `.env.example` for the required keys):
+
+| Variable | Description |
+| --- | --- |
+| `DATABASE_URL` | Postgres connection string. When running via `docker compose`, the app reaches the database container by its service name (`db`), not `localhost`. |
 
 ## API reference
 
@@ -115,6 +137,12 @@ curl -X DELETE http://localhost:3000/tasks/1
 
 A successful delete returns `204 No Content`.
 
+### Example request/response
+
+```text
+<< PASTE ONE curl -i OUTPUT HERE — e.g. curl -i http://localhost:3000/tasks >>
+```
+
 ## Responses and errors
 
 - `200 OK` — request completed successfully
@@ -133,57 +161,56 @@ Errors are returned as JSON, for example:
 
 ## Interactive documentation
 
-Start the server and visit [http://localhost:3000/docs](http://localhost:3000/docs) to explore and try the API through Swagger UI. The source OpenAPI specification is available in [`openapi.json`](./openapi.json).
+Start the stack and visit [http://localhost:3000/docs](http://localhost:3000/docs) to explore and try the API through Swagger UI. The source OpenAPI specification is available in [`openapi.json`](./openapi.json).
 
 ## Project structure
 
 ```text
 .
-├── index.js        # Express server and route handlers
-├── db.js           # SQLite connection, schema, and seed logic
-├── tasks.db        # SQLite database file (git-ignored, created automatically)
-├── openapi.json    # OpenAPI 3.0 specification
-├── package.json    # Project metadata, scripts, and dependencies
+├── index.js         # Express server and route handlers
+├── db.js            # Postgres connection (pg Pool), schema, and seed logic
+├── Dockerfile        # Builds the app's container image
+├── compose.yaml       # Defines and wires the api + db services together
+├── openapi.json      # OpenAPI 3.0 specification
+├── package.json      # Project metadata, scripts, and dependencies
 ├── package-lock.json
+├── .env               # Local secrets (git-ignored, not committed)
+├── .env.example       # Placeholder env keys (committed)
 ├── .gitignore
+├── tasks.db           # SQLite file from an earlier assignment stage (A2), unused by the current app
 └── README.md
 ```
 
 ## Data persistence
 
-Tasks are stored in a SQLite database (`tasks.db`) instead of in memory, so data survives a server restart.
+Tasks are stored in PostgreSQL, running as its own containerized server (not a local file). The database's actual data directory is mounted to a named Docker volume (`taskdata`), which lives outside any individual container — so removing or recreating the `db` container does not delete the data.
 
-**Why SQLite:** it's a single file with no separate server process to install or configure, which makes it a good fit for a small project like this — `tasks.db` is created automatically the first time the app runs.
+**Connection:** the app reads `DATABASE_URL` from `.env` on startup and connects via the [`pg`](https://node-postgres.com/) driver. When run through `docker compose`, this URL points at the `db` service by name (containers on the same Compose network resolve each other by service name, not `localhost`).
 
-**Where the database lives:** `tasks.db`, in the project root. It's git-ignored, so cloning this repo does not come with any existing data — each clone starts fresh and the database, table, and seed tasks are all created automatically on first run.
-
-**Start command:**
-
-```bash
-npm run dev
-```
-
-This alone is enough to get a working app: `tasks.db` and its `tasks` table are created if missing, and seeded with three example tasks the first time the table is empty.
+**Table & seeding:** on startup, the app creates the `tasks` table if it doesn't already exist, then seeds three example tasks — but only if the table is currently empty. This mirrors the "seed once" behavior from earlier assignment stages.
 
 The default seed tasks are:
 
 - Buy the mona lisa
 - Develop a black hole
-- Meet abraham linclon
+- Meet Abraham Lincoln
+
+**Persistence was verified by:** creating tasks via the API, running `docker compose down` to fully tear down both containers, then `docker compose up` again — the previously created tasks were still present, confirming the volume (not the container) is what holds the data.
 
 ### Inspecting the database directly
 
-`tasks.db` can be opened in [DB Browser for SQLite](https://sqlitebrowser.org/) to view and query the data outside the API:
+Since data now lives in Postgres rather than a SQLite file, [DB Browser for SQLite](https://sqlitebrowser.org/) can no longer be used to inspect it. Instead, open a `psql` prompt inside the running database container:
 
-![tasks.db open in DB Browser for SQLite showing the tasks table](./screenshot-db-browser.png)
-
-Example query run directly against the database in DB Browser:
-
-```sql
-SELECT * FROM tasks WHERE done = 1;
+```bash
+docker exec -it todo-api-db-1 psql -U postgres -d tasks
 ```
 
-This returned only the tasks currently marked complete — confirming that the API and DB Browser read and write the exact same file, with no syncing step between them.
+```sql
+\dt
+SELECT * FROM tasks;
+```
+
+![tasks table shown via psql inside the Postgres container](./screenshot-db-postgres.png)
 
 ## License
 
