@@ -1,8 +1,9 @@
 const express = require('express');
 const swaggerUi = require('swagger-ui-express');
 const openApi= require('./openapi.json');
-const app = express();
 const pool = require('./db.js');
+const supabase = require('./supabase.js');
+const app = express();
 const PORT = 3000;
 // ──────────────────────
 app.use(express.json());
@@ -44,7 +45,7 @@ app.put('/tasks/:id', async (req, res) => {
 //───────────────────────
 
 
-// ───── Delete Tasks ─── MODIFY! *
+// ───── Delete Tasks ───
 app.delete('/tasks/:id', async (req, res) => {
     const id = parseInt(req.params.id);
     const existing = await pool.query("SELECT * FROM tasks WHERE id = $1", [id])
