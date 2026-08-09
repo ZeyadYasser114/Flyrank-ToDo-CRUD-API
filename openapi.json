@@ -3,11 +3,20 @@
   "info": {
     "title": "Task API",
     "version": "1.0.0",
-    "description": "A small in-memory CRUD API for managing a to-do list."
+    "description": "A CRUD API for managing a to-do list, secured with Supabase Auth."
   },
   "servers": [
     { "url": "http://localhost:3000" }
   ],
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
+      }
+    }
+  },
   "paths": {
     "/": {
       "get": {
@@ -24,6 +33,105 @@
         "description": "Confirms the server is running.",
         "responses": {
           "200": { "description": "Server is healthy" }
+        }
+      }
+    },
+    "/public/info": {
+      "get": {
+        "summary": "Public info",
+        "description": "Returns a public welcome message. No authentication required.",
+        "responses": {
+          "200": { "description": "Public message returned" }
+        }
+      }
+    },
+    "/auth/signup": {
+      "post": {
+        "summary": "Sign up",
+        "description": "Creates a new user account via Supabase Auth.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "email": { "type": "string", "example": "test@example.com" },
+                  "password": { "type": "string", "example": "password123" }
+                },
+                "required": ["email", "password"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": { "description": "User created" },
+          "400": { "description": "Missing or invalid email/password" }
+        }
+      }
+    },
+    "/auth/login": {
+      "post": {
+        "summary": "Log in",
+        "description": "Authenticates a user and returns an access token and refresh token.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "email": { "type": "string", "example": "test@example.com" },
+                  "password": { "type": "string", "example": "password123" }
+                },
+                "required": ["email", "password"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Login successful, tokens returned" },
+          "400": { "description": "Missing email or password" },
+          "401": { "description": "Invalid login credentials" }
+        }
+      }
+    },
+    "/auth/logout": {
+      "post": {
+        "summary": "Log out",
+        "description": "Ends the current user's session. Requires a valid bearer token.",
+        "security": [
+          { "bearerAuth": [] }
+        ],
+        "responses": {
+          "204": { "description": "Logged out successfully" },
+          "401": { "description": "Missing, malformed, or invalid/expired token" }
+        }
+      }
+    },
+    "/protected/profile": {
+      "get": {
+        "summary": "Get profile",
+        "description": "Returns the authenticated user's id, email, and account creation date. Requires a valid bearer token.",
+        "security": [
+          { "bearerAuth": [] }
+        ],
+        "responses": {
+          "200": { "description": "User profile returned" },
+          "401": { "description": "Missing, malformed, or invalid/expired token" }
+        }
+      }
+    },
+    "/protected/dashboard": {
+      "get": {
+        "summary": "Get dashboard",
+        "description": "Returns a welcome message for the authenticated user. Requires a valid bearer token.",
+        "security": [
+          { "bearerAuth": [] }
+        ],
+        "responses": {
+          "200": { "description": "Welcome message returned" },
+          "401": { "description": "Missing, malformed, or invalid/expired token" }
         }
       }
     },

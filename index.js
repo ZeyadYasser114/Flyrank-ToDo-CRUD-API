@@ -1,13 +1,15 @@
 const express = require('express');
 const swaggerUi = require('swagger-ui-express');
-const openApi= require('./openapi.json');
+const openApi = require('./openapi.json');
 const pool = require('./db.js');
 const supabase = require('./supabase.js');
 const app = express();
 const PORT = 3000;
 app.use(express.json());
 
-// ──────────────────────
+// ──────────────────────────────
+// Auth middleware
+// ──────────────────────────────
 async function requireAuth(req, res, next) {
     const authHeader = req.headers.authorization;
      if (!authHeader || !authHeader.startsWith('Bearer ')){
@@ -25,17 +27,9 @@ async function requireAuth(req, res, next) {
     next();
 }
 
-app.post('/tasks', async (req, res) =>{
-    const {title} = req.body;
-    if (!title || title.trim() == ""){
-        return res.status(400).json({error: "Title is required"});
-    }
-    const result = await pool.query("INSERT INTO tasks (title, done) VALUES ($1, $2) RETURNING *", [title, false]);
-    res.status(201).json(result.rows[0]);
-});
-// ──────────────────────
-
-// ─────Auth / SignUp ─── 
+// ──────────────────────────────
+// Auth routes
+// ──────────────────────────────
 
 app.post('/auth/signup', async (req, res) => {
     const { email, password } = req.body;
@@ -51,8 +45,6 @@ app.post('/auth/signup', async (req, res) => {
         return res.status(201).json(data.user);
     }
 })
-
-// ─────Auth / Login ─── 
 
 app.post('/auth/login', async (req, res) => {
     const { email, password } = req.body;
@@ -72,15 +64,59 @@ app.post('/auth/login', async (req, res) => {
     }
 });
 
-// ─────Auth / Logout ───
-
 app.post('/auth/logout', requireAuth, async (req, res) => {
         await supabase.auth.signOut()
         return res.status(204).send(    )
     
 });
 
-// ─────Update a Task ───
+// ──────────────────────────────
+// Public / protected demo routes
+// ──────────────────────────────
+
+app.get('/public/info', (req, res) =>{
+    res.status(200).json({message: 'Hello stranger. you can see info now.'})
+})
+
+app.get('/protected/profile', requireAuth, async (req, res) => {
+        return res.status(200).json({
+            id: req.user.id,
+            email: req.user.email,
+            created_at: req.user.created_at
+        });
+});     
+
+app.get('/protected/dashboard', requireAuth, (req, res) => {
+    res.status(200).json({ message: `Welcome, ${req.user.email}` });
+});
+
+// ──────────────────────────────
+// Task routes (CRUD)
+// ──────────────────────────────
+
+app.get('/tasks', async (req, res) => {
+   const result = await pool.query('SELECT * FROM tasks');
+   res.json(result.rows); 
+});
+
+app.get('/tasks/:id', async (req, res) => {
+    const id = parseInt(req.params.id);
+    const result = await pool.query("SELECT * FROM tasks WHERE id = $1", [id]);
+    if (result.rows.length === 0){
+        return res.status(404).json({error: `Task ${id} not found`});
+    }
+    res.json(result.rows[0]);
+});
+
+app.post('/tasks', async (req, res) =>{
+    const {title} = req.body;
+    if (!title || title.trim() == ""){
+        return res.status(400).json({error: "Title is required"});
+    }
+    const result = await pool.query("INSERT INTO tasks (title, done) VALUES ($1, $2) RETURNING *", [title, false]);
+    res.status(201).json(result.rows[0]);
+});
+
 app.put('/tasks/:id', async (req, res) => {
     const id = parseInt(req.params.id);
     const existing = await pool.query('SELECT * FROM tasks WHERE id = $1', [id])
@@ -97,8 +133,6 @@ app.put('/tasks/:id', async (req, res) => {
     res.json(updated.rows[0]);
 });
 
-
-// ───── Delete Tasks ───
 app.delete('/tasks/:id', async (req, res) => {
     const id = parseInt(req.params.id);
     const existing = await pool.query("SELECT * FROM tasks WHERE id = $1", [id])
@@ -107,60 +141,26 @@ app.delete('/tasks/:id', async (req, res) => {
     res.status(204).send();
 });
 
+// ──────────────────────────────
+// Misc routes
+// ──────────────────────────────
 
-// ───── Default ───
 app.get('/', (req, res) => {
     res.json({ name: "Task API", version: "1.0", endpoints: ["/tasks"] });
 });
 
-// ─────────────────────
-app.get('/protected/dashboard', requireAuth, (req, res) => {
-    res.status(200).json({ message: `Welcome, ${req.user.email}` });
-});
-
-// ─────────────────────
-app.get('/public/info', (req, res) =>{
-    res.status(200).json({message: 'Hello stranger. you can see info now.'})
-})
-// ─────────────────────
-app.get('/protected/profile', requireAuth, async (req, res) => {
-        return res.status(200).json({
-            id: req.user.id,
-            email: req.user.email,
-            created_at: req.user.created_at
-        });
-});     
-
-// ───── Server Health ───
 app.get('/health', (req, res) => {
     res.json({ status: "ok" });
 });
 
-
-// ───── Tasks ───
-app.get('/tasks', async (req, res) => {
-   const result = await pool.query('SELECT * FROM tasks');
-   res.json(result.rows); 
-});
-
-
-// ───── Tasks with id ───
-app.get('/tasks/:id', async (req, res) => {
-    const id = parseInt(req.params.id);
-    const result = await pool.query("SELECT * FROM tasks WHERE id = $1", [id]);
-    if (result.rows.length === 0){
-        return res.status(404).json({error: `Task ${id} not found`});
-    }
-    res.json(result.rows[0]);
-});
-
-
-// ───── Swagger UI ───
+// ──────────────────────────────
+// Swagger UI
+// ──────────────────────────────
 app.use('/docs', swaggerUi.serve, swaggerUi.setup(openApi));
 
-
-// ───── Listen Message ───
+// ──────────────────────────────
+// Start server
+// ──────────────────────────────
 app.listen(PORT, () => {
     console.log(`Server is running on http://localhost:${PORT}`);
 });
-// ───────── hi ────────── 
