@@ -88,6 +88,21 @@ app.get('/', (req, res) => {
     res.json({ name: "Task API", version: "1.0", endpoints: ["/tasks"] });
 });
 
+// ─────────────────────
+app.get('/public/info', (req, res) =>{
+    res.status(200).json({message: 'Hello stranger. you can see info now.'})
+})
+// ─────────────────────
+app.get('/protected/profile', (req, res) => {
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')){
+        return res.status(401).json({error: "Access token required"})
+    }
+    const token = authHeader.split(' ')[1];
+    if (!token){
+        return res.status(401).json({error: "Access token required"})
+    }
+});
 
 // ───── Server Health ───
 app.get('/health', (req, res) => {
