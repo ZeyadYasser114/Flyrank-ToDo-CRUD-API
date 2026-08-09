@@ -5,10 +5,8 @@ const pool = require('./db.js');
 const supabase = require('./supabase.js');
 const app = express();
 const PORT = 3000;
-// ──────────────────────
 app.use(express.json());
 
-// ─────Make a task ───
 app.post('/tasks', async (req, res) =>{
     const {title} = req.body;
     if (!title || title.trim() == ""){
@@ -19,13 +17,42 @@ app.post('/tasks', async (req, res) =>{
 });
 // ──────────────────────
 
+// ─────Auth / SignUp ─── 
 
-// ───── Fixed Database ───
-let tasks = [
-    {id: 1, title: "Buy the mona lisa", done: false},
-    {id: 2, title: "Develop a black hole", done: false},
-    {id: 3, title: "Meet abraham linclon",done: false}
-];
+app.post('/auth/signup', async (req, res) => {
+    const { email, password } = req.body;
+    if (!email || !password){
+        return res.status(400).json({error: "Email and password required"});
+    }
+    
+    const { data , error} = await supabase.auth.signUp({email, password});  
+    if (error){
+        return res.status(400).json({error: error.message});
+    }
+    else{
+        return res.status(201).json(data.user);
+    }
+})
+
+// ─────Auth / Login ─── 
+
+app.post('/auth/login', async (req, res) => {
+    const { email, password } = req.body;
+    if (!email || !password){
+        return res.status(400).json({error: "Email and password required"});
+    }
+
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+    if (error){
+        return res.status(401).json({error: "Invalid login credentials"});
+    }
+    else{
+        return res.status(200).json({
+            access_token: data.session.access_token,
+            refresh_token: data.session.refresh_token
+        });
+    }
+});
 
 
 // ─────Update a Task ───
@@ -44,7 +71,6 @@ app.put('/tasks/:id', async (req, res) => {
     const updated = await pool.query('UPDATE tasks SET title = $1, done = $2 WHERE id = $3 RETURNING *', [newTitle, newDone, id]);
     res.json(updated.rows[0]);
 });
-//───────────────────────
 
 
 // ───── Delete Tasks ───
@@ -55,7 +81,6 @@ app.delete('/tasks/:id', async (req, res) => {
     await pool.query('DELETE FROM tasks WHERE id = $1', [id]);
     res.status(204).send();
 });
-// ──────────────────────
 
 
 // ───── Default ───
@@ -75,7 +100,6 @@ app.get('/tasks', async (req, res) => {
    const result = await pool.query('SELECT * FROM tasks');
    res.json(result.rows); 
 });
-// ──────────────────────
 
 
 // ───── Tasks with id ───
@@ -87,16 +111,14 @@ app.get('/tasks/:id', async (req, res) => {
     }
     res.json(result.rows[0]);
 });
-// ──────────────────────
 
 
 // ───── Swagger UI ───
 app.use('/docs', swaggerUi.serve, swaggerUi.setup(openApi));
-// ──────────────────────
 
 
 // ───── Listen Message ───
 app.listen(PORT, () => {
     console.log(`Server is running on http://localhost:${PORT}`);
 });
-// ────────────────────── 
+// ───────── hi ────────── 
