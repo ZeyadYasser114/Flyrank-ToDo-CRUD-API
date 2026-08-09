@@ -202,7 +202,7 @@ The default seed tasks are:
 Since data now lives in Postgres rather than a SQLite file, [DB Browser for SQLite](https://sqlitebrowser.org/) can no longer be used to inspect it. Instead, open a `psql` prompt inside the running database container:
 
 ```bash
-docker exec -it todo-api-db-1 psql -U postgres -d tasks
+docker exec -it taskdb psql -U postgres -d tasks
 ```
 
 ```sql
