@@ -3,6 +3,7 @@ const swaggerUi = require('swagger-ui-express');
 const openApi = require('./openapi.json');
 const pool = require('./db.js');
 const supabase = require('./supabase.js');
+const triageSchema = require('./LLM/schema.js');
 const app = express();
 const PORT = 3000;
 app.use(express.json());
@@ -115,6 +116,22 @@ app.post('/tasks', async (req, res) =>{
     }
     const result = await pool.query("INSERT INTO tasks (title, done) VALUES ($1, $2) RETURNING *", [title, false]);
     res.status(201).json(result.rows[0]);
+});
+
+app.post('/triage', async (req ,res) => {
+    const {text} = req.body;
+    if (!text || text.trim() == "" || text.length > 2000){
+        return res.status(400).json({error: "Text is required and must be under characters"})
+    }
+    if (process.env.LLM_STUB === '1'){ 
+        return res.status(200).json({
+            category: "other",
+            urgency: "low",
+            confidence: 0.5,
+            reason: "stub response"
+        })
+    }
+    res.status(200).json();
 });
 
 app.put('/tasks/:id', async (req, res) => {
