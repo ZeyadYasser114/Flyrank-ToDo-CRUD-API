@@ -1,11 +1,18 @@
 const express = require('express');
 const swaggerUi = require('swagger-ui-express');
+const fs = require('fs');  
 const openApi = require('./openapi.json');
 const pool = require('./db.js');
 const supabase = require('./supabase.js');
 const triageSchema = require('./LLM/schema.js');
+const OpenAI = require('openai');
 const app = express();
 const PORT = 3000;
+const client = new OpenAI({
+    baseURL: process.env.LLM_BASE_URL,
+    apiKey: process.env.LLM_API_KEY,
+});
+const systemPrompt = fs.readFileSync('./prompts/triage-v1.md', 'utf-8');
 app.use(express.json());
 
 // ──────────────────────────────
@@ -121,7 +128,7 @@ app.post('/tasks', async (req, res) =>{
 app.post('/triage', async (req ,res) => {
     const {text} = req.body;
     if (!text || text.trim() == "" || text.length > 2000){
-        return res.status(400).json({error: "Text is required and must be under characters"})
+        return res.status(400).json({error: "Text is required and must be under 2000 characters"})
     }
     if (process.env.LLM_STUB === '1'){ 
         return res.status(200).json({
@@ -131,7 +138,15 @@ app.post('/triage', async (req ,res) => {
             reason: "stub response"
         })
     }
-    res.status(200).json();
+    const resultClient = await client.chat.completions.create({
+        model: process.env.LLM_MODEL,
+        temperature: 0,
+        messages:[
+            {role: "system", content: systemPrompt},
+            {role: "user", content: text}
+        ]
+    });
+    res.status(200).json(resultClient.choices[0].message.content);
 });
 
 app.put('/tasks/:id', async (req, res) => {
