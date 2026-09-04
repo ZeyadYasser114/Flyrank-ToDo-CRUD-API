@@ -1,0 +1,10 @@
+[
+  {"text": "I was charged twice for my subscription this month, please help", "expected_category": "billing"},
+  {"text": "the app keeps freezing when I try to export a file, it's really annoying and I have a deadline", "expected_category": "bug"},
+  {"text": "would be great if you could add dark mode to the mobile app", "expected_category": "feature"},
+  {"text": "asdkjaslkdj what is this app even for", "expected_category": "other"},
+  {"text": "hey when is the next update coming out", "expected_category": "other"},
+  {"text": "my card was declined but you still took the money out of my bank account", "expected_category": "billing"},
+  {"text": "URGENT!!! the whole app is down for our entire team, we cannot work, this is costing us money every minute", "expected_category": "bug"},
+  {"text": "can you please refund me and also can you build an integration with Slack", "expected_category": "billing"}
+]
