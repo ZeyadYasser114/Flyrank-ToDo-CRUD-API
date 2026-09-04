@@ -5,7 +5,7 @@ const openApi = require('./openapi.json');
 const pool = require('./db.js');
 const supabase = require('./supabase.js');
 const triageSchema = require('./LLM/schema.js');
-const OpenAI = require('openai');
+const OpenAI = require('openai');;
 const app = express();
 const PORT = 3000;
 const client = new OpenAI({
@@ -14,6 +14,13 @@ const client = new OpenAI({
 });
 const systemPrompt = fs.readFileSync('./prompts/triage-v1.md', 'utf-8');
 app.use(express.json());
+
+function extractJson(text) {
+    const start = text.indexOf('{');
+    const end = text.lastIndexOf('}');
+    if (start === -1 || end === -1) return null;
+    return text.slice(start, end + 1);
+}
 
 // ──────────────────────────────
 // Auth middleware
@@ -146,7 +153,47 @@ app.post('/triage', async (req ,res) => {
             {role: "user", content: text}
         ]
     });
-    res.status(200).json(resultClient.choices[0].message.content);
+    const rawText = resultClient.choices[0].message.content;
+    const jsonString = extractJson(rawText);
+    let parsed;
+    try{
+        parsed = JSON.parse(jsonString);
+    } catch (e) {
+        parsed = null;
+    }
+    const validation = triageSchema.safeParse(parsed);
+    if (validation.success){
+        return res.status(200).json(validation.data);   
+    }
+    const repairResult = await client.chat.completions.create({
+        model: process.env.LLM_MODEL,
+        temperature: 0,
+        messages: [
+            {role: "system", content: systemPrompt},
+            {role: "user", content: text},
+            {role: "assistant", content: rawText},
+            {role: "user", content: `Your previous answer was rejected for this reason: ${validation.error.message}. Return only corrected json matching the schema.`}
+        ]
+    })
+    const repairText = repairResult.choices[0].message.content;
+    const repairJsonString = extractJson(repairText);
+    let repairParsed;
+    try{
+        repairParsed = JSON.parse(repairJsonString);
+    } catch (e){
+        repairParsed = null;
+    }
+    const repairValidation = triageSchema.safeParse(repairParsed);
+    if (repairValidation.success){
+        return res.status(200).json(repairValidation.data);
+    }
+    fs.appendFileSync('./logs/quarantine.jsonl', JSON.stringify({
+        input: text,
+        error: repairValidation.error.message,
+        promptVersion: 'V1',
+        timestamp:  new Date().toISOString()
+    }) + '\n')
+    return res.status(422).json({error: "Could not produce a valid classification for this input."});
 });
 
 app.put('/tasks/:id', async (req, res) => {

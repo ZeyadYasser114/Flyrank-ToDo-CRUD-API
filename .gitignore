@@ -2,3 +2,4 @@ node_modules/
 tasks.db
 tasks.db-journal
 .env
+logs/
