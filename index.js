@@ -5,21 +5,58 @@ const openApi = require('./openapi.json');
 const pool = require('./db.js');
 const supabase = require('./supabase.js');
 const triageSchema = require('./LLM/schema.js');
-const OpenAI = require('openai');;
+const OpenAI = require('openai');
 const app = express();
 const PORT = 3000;
+const systemPrompt = fs.readFileSync('./prompts/triage-v1.md', 'utf-8');
+app.use(express.json());
+
 const client = new OpenAI({
     baseURL: process.env.LLM_BASE_URL,
     apiKey: process.env.LLM_API_KEY,
+    timeout: 30000, // 30 secs
+    maxRetries: 0,
 });
-const systemPrompt = fs.readFileSync('./prompts/triage-v1.md', 'utf-8');
-app.use(express.json());
 
 function extractJson(text) {
     const start = text.indexOf('{');
     const end = text.lastIndexOf('}');
     if (start === -1 || end === -1) return null;
     return text.slice(start, end + 1);
+}
+
+function logCost(promptTokens, completionTokens, durationMs, repaired){
+    console.log(JSON.stringify({
+        promptVersion: 'V1',
+        model: process.env.LLM_MODEL,
+        inputTokens: promptTokens,
+        outputTokens: completionTokens,
+        durationMs: durationMs,
+        repaired: repaired,
+        timestamp: new Date().toISOString(),
+    }));
+}
+
+async function callWithRetry(messages){
+    const maxAttempts = 3;
+    for (let attempt = 0; attempt < maxAttempts ; attempt ++) {
+        try {
+            return await client.chat.completions.create({
+                model: process.env.LLM_MODEL,
+                temperature: 0,
+                messages: messages,
+            });
+        } catch (err){
+            const status = err.status;
+            const retryable = status == 429 || status === 408 || (status >= 500 && status < 600);
+            if (!retryable || attempt === maxAttempts - 1){
+                throw err;
+            }
+            const delay = 1000 * Math.pow(2, attempt)
+            const jitter = Math.random() * 500; 
+            await new Promise(resolve => setTimeout(resolve, delay + jitter));
+        }
+    }
 }
 
 // ──────────────────────────────
@@ -145,55 +182,59 @@ app.post('/triage', async (req ,res) => {
             reason: "stub response"
         })
     }
-    const resultClient = await client.chat.completions.create({
-        model: process.env.LLM_MODEL,
-        temperature: 0,
-        messages:[
+    if (process.env.LLM_ENABLED === 'false'){
+        return res.status(503).json({error: "AI triage is temporarily disabled."})
+    }
+    try {
+        const startTime = Date.now();
+        const resultClient = await callWithRetry([
             {role: "system", content: systemPrompt},
             {role: "user", content: text}
-        ]
-    });
-    const rawText = resultClient.choices[0].message.content;
-    const jsonString = extractJson(rawText);
-    let parsed;
-    try{
-        parsed = JSON.parse(jsonString);
-    } catch (e) {
-        parsed = null;
-    }
-    const validation = triageSchema.safeParse(parsed);
-    if (validation.success){
-        return res.status(200).json(validation.data);   
-    }
-    const repairResult = await client.chat.completions.create({
-        model: process.env.LLM_MODEL,
-        temperature: 0,
-        messages: [
+        ]);
+        const rawText = resultClient.choices[0].message.content;
+        const jsonString = extractJson(rawText);
+        let parsed;
+        try{
+            parsed = JSON.parse(jsonString);
+        } catch (e) {
+            parsed = null;
+        }
+        const validation = triageSchema.safeParse(parsed);
+        if (validation.success){
+            logCost(resultClient.usage.prompt_tokens, resultClient.usage.completion_tokens, Date.now() - startTime, false);
+            return res.status(200).json(validation.data);
+        }
+
+        const repairResult = await callWithRetry([
             {role: "system", content: systemPrompt},
             {role: "user", content: text},
             {role: "assistant", content: rawText},
             {role: "user", content: `Your previous answer was rejected for this reason: ${validation.error.message}. Return only corrected json matching the schema.`}
-        ]
-    })
-    const repairText = repairResult.choices[0].message.content;
-    const repairJsonString = extractJson(repairText);
-    let repairParsed;
-    try{
-        repairParsed = JSON.parse(repairJsonString);
-    } catch (e){
-        repairParsed = null;
+        ]);
+        const repairText = repairResult.choices[0].message.content;
+        const repairJsonString = extractJson(repairText);
+        let repairParsed;
+        try{
+            repairParsed = JSON.parse(repairJsonString);
+        } catch (e){
+            repairParsed = null;
+        }
+        const repairValidation = triageSchema.safeParse(repairParsed);
+        if (repairValidation.success){
+            logCost(repairResult.usage.prompt_tokens, repairResult.usage.completion_tokens, Date.now() - startTime, true);
+            return res.status(200).json(repairValidation.data);
+        }
+        fs.appendFileSync('./logs/quarantine.jsonl', JSON.stringify({
+            input: text,
+            error: repairValidation.error.message,
+            promptVersion: 'V1',
+            timestamp:  new Date().toISOString()
+        }) + '\n')
+        return res.status(422).json({error: "Could not produce a valid classification for this input."});
+
+    } catch (err) {
+        return res.status(504).json({error: "Model call timed out or failed."});
     }
-    const repairValidation = triageSchema.safeParse(repairParsed);
-    if (repairValidation.success){
-        return res.status(200).json(repairValidation.data);
-    }
-    fs.appendFileSync('./logs/quarantine.jsonl', JSON.stringify({
-        input: text,
-        error: repairValidation.error.message,
-        promptVersion: 'V1',
-        timestamp:  new Date().toISOString()
-    }) + '\n')
-    return res.status(422).json({error: "Could not produce a valid classification for this input."});
 });
 
 app.put('/tasks/:id', async (req, res) => {
